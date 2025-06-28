@@ -21,11 +21,38 @@ serve(async (req) => {
 
     console.log('Gerando jogo para usuário:', userId);
     
-    // Criar cliente Supabase
+    // Criar cliente Supabase com service role para bypass RLS
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
     );
+
+    // Verificar se o usuário existe na tabela profiles
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      console.log('Criando perfil para usuário:', userId);
+      const { error: insertProfileError } = await supabaseClient
+        .from('profiles')
+        .insert({
+          id: userId,
+          username: 'Usuario'
+        });
+      
+      if (insertProfileError) {
+        console.error('Erro ao criar perfil:', insertProfileError);
+      }
+    }
 
     // Criar registro do jogo no banco
     const { data: gameRecord, error: insertError } = await supabaseClient
@@ -43,7 +70,15 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
+      console.error('Erro ao criar registro do jogo:', insertError);
       throw new Error(`Erro ao criar registro do jogo: ${insertError.message}`);
+    }
+
+    console.log('Registro do jogo criado:', gameRecord.id);
+
+    // Verificar se a chave do OpenAI está configurada
+    if (!openAIApiKey) {
+      throw new Error('Chave da API OpenAI não configurada');
     }
 
     // Gerar código do jogo com ChatGPT
@@ -76,6 +111,8 @@ serve(async (req) => {
     }
     `;
 
+    console.log('Chamando OpenAI API...');
+
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -96,6 +133,12 @@ serve(async (req) => {
       }),
     });
 
+    if (!openAIResponse.ok) {
+      const errorText = await openAIResponse.text();
+      console.error('Erro na resposta do OpenAI:', errorText);
+      throw new Error(`Erro na API OpenAI: ${openAIResponse.status} - ${errorText}`);
+    }
+
     const openAIData = await openAIResponse.json();
     const generatedGameCode = openAIData.choices[0].message.content;
 
@@ -106,6 +149,7 @@ serve(async (req) => {
     try {
       gameData = JSON.parse(generatedGameCode);
     } catch (e) {
+      console.log('Erro ao parsear JSON, usando estrutura básica');
       // Se não conseguir parsear como JSON, criar estrutura básica
       gameData = {
         gameTitle: "Jogo Pixel Art Gerado",
@@ -145,6 +189,7 @@ serve(async (req) => {
       .eq('id', gameRecord.id);
 
     if (updateError) {
+      console.error('Erro ao atualizar jogo:', updateError);
       throw new Error(`Erro ao atualizar jogo: ${updateError.message}`);
     }
 
