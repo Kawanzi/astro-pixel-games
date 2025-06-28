@@ -3,24 +3,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { UserPlus, User, Mail, Lock } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const Register = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { signUp, user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  if (user) {
+    return <Navigate to="/create" replace />;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implementar registro com Supabase
+    
     if (password !== confirmPassword) {
       alert("Senhas não coincidem!");
       return;
     }
-    console.log("Register attempt:", { name, email, password });
+
+    if (!email || !password || !name) return;
+    
+    setIsLoading(true);
+    await signUp(email, password, name);
+    setIsLoading(false);
   };
 
   return (
@@ -55,6 +67,7 @@ const Register = () => {
                     onChange={(e) => setName(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -73,6 +86,7 @@ const Register = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -91,6 +105,7 @@ const Register = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -109,15 +124,17 @@ const Register = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
               
               <Button 
                 type="submit" 
+                disabled={isLoading}
                 className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-yellow-500/25"
               >
-                Criar Conta
+                {isLoading ? "Criando conta..." : "Criar Conta"}
               </Button>
             </form>
             

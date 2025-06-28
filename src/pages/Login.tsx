@@ -3,18 +3,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { LogIn, User, Lock } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { signIn, user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  if (user) {
+    return <Navigate to="/create" replace />;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implementar autenticação com Supabase
-    console.log("Login attempt:", { email, password });
+    if (!email || !password) return;
+    
+    setIsLoading(true);
+    await signIn(email, password);
+    setIsLoading(false);
   };
 
   return (
@@ -49,6 +59,7 @@ const Login = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -67,15 +78,17 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 bg-zinc-800 border-yellow-500/30 text-white placeholder:text-gray-400 focus:border-yellow-400 focus:ring-yellow-400/20"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
               
               <Button 
                 type="submit" 
+                disabled={isLoading}
                 className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-yellow-500/25"
               >
-                Entrar
+                {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
             

@@ -4,11 +4,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Rocket, Sparkles, Download, Edit, Share, Gamepad2 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const GameCreator = () => {
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const [gamePrompt, setGamePrompt] = useState("");
   const [gameStory, setGameStory] = useState("");
   const [gameGenre, setGameGenre] = useState("");
@@ -16,24 +21,63 @@ const GameCreator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedGame, setGeneratedGame] = useState<any>(null);
 
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
   const handleGenerateGame = async () => {
     if (!gamePrompt.trim() || !gameStory.trim()) {
-      alert("Por favor, preencha a descrição e história do jogo!");
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha a descrição e história do jogo!",
+        variant: "destructive"
+      });
       return;
     }
 
     setIsGenerating(true);
     
-    // Simulação do processo de geração
-    // TODO: Implementar integração com ChatGPT e Godot
-    setTimeout(() => {
-      setGeneratedGame({
-        name: "Aventura Épica",
-        thumbnail: "/placeholder.svg",
-        downloadUrl: "#"
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-game', {
+        body: {
+          gamePrompt,
+          gameStory,
+          gameGenre,
+          pixelStyle,
+          userId: user.id
+        }
       });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.success) {
+        setGeneratedGame({
+          id: data.gameId,
+          name: data.gameTitle,
+          thumbnail: "/placeholder.svg",
+          downloadUrl: data.downloadUrl,
+          gameData: data.gameData
+        });
+
+        toast({
+          title: "Jogo criado com sucesso!",
+          description: "Seu jogo está pronto para download!"
+        });
+      } else {
+        throw new Error(data.error || 'Erro desconhecido');
+      }
+    } catch (error: any) {
+      console.error('Erro ao gerar jogo:', error);
+      toast({
+        title: "Erro na geração",
+        description: error.message || "Ocorreu um erro ao gerar o jogo. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
       setIsGenerating(false);
-    }, 3000);
+    }
   };
 
   return (
@@ -44,11 +88,21 @@ const GameCreator = () => {
           <Gamepad2 className="h-8 w-8 text-yellow-400" />
           <h1 className="text-2xl font-bold">PixelForge AI</h1>
         </div>
-        <Link to="/">
-          <Button variant="outline" className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black">
-            Voltar
+        <div className="flex items-center space-x-4">
+          <span className="text-gray-300">Olá, {user.email}</span>
+          <Link to="/">
+            <Button variant="outline" className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black">
+              Início
+            </Button>
+          </Link>
+          <Button 
+            onClick={signOut}
+            variant="outline" 
+            className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black"
+          >
+            Sair
           </Button>
-        </Link>
+        </div>
       </header>
 
       <div className="max-w-6xl mx-auto">
@@ -57,7 +111,7 @@ const GameCreator = () => {
             Crie Seu Jogo dos Sonhos
           </h2>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Descreva suas ideias e nossa IA transformará em um jogo jogável
+            Descreva suas ideias e nossa IA transformará em um jogo jogável usando ChatGPT-4.5 e Unity
           </p>
         </div>
 
@@ -157,31 +211,33 @@ const GameCreator = () => {
                 <div className="w-32 h-32 mx-auto bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center mb-4">
                   <Gamepad2 className="h-16 w-16 text-black" />
                 </div>
-                <p className="text-gray-300">Jogo gerado com sucesso!</p>
+                <p className="text-gray-300">Jogo gerado com sucesso usando ChatGPT-4.5 e Unity!</p>
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold">
+                <Button 
+                  className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+                  onClick={() => window.open(generatedGame.downloadUrl, '_blank')}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Baixar .exe
                 </Button>
-                <Button variant="outline" className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black">
+                <Button 
+                  variant="outline" 
+                  className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black"
+                  onClick={() => setGeneratedGame(null)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
-                  Editar Parâmetros
+                  Criar Outro
                 </Button>
-                <Button variant="outline" className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black">
+                <Button 
+                  variant="outline" 
+                  className="border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black"
+                >
                   <Share className="mr-2 h-4 w-4" />
                   Compartilhar
                 </Button>
               </div>
-              
-              <Button 
-                variant="ghost" 
-                onClick={() => setGeneratedGame(null)}
-                className="text-yellow-400 hover:text-yellow-300"
-              >
-                Criar Outro Jogo
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -198,7 +254,7 @@ const GameCreator = () => {
               {isGenerating ? (
                 <>
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mr-3"></div>
-                  Gerando Jogo...
+                  Gerando com IA...
                 </>
               ) : (
                 <>
@@ -211,19 +267,23 @@ const GameCreator = () => {
             {isGenerating && (
               <div className="mt-8 max-w-md mx-auto">
                 <div className="bg-zinc-900/80 p-6 rounded-xl border border-yellow-500/30">
-                  <div className="text-yellow-400 font-medium mb-2">Processo de Criação:</div>
-                  <div className="space-y-2 text-sm text-gray-300">
+                  <div className="text-yellow-400 font-medium mb-4">🤖 Processo de Criação com IA:</div>
+                  <div className="space-y-3 text-sm text-gray-300">
                     <div className="flex items-center">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
-                      Analisando sua descrição...
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-3 animate-pulse"></div>
+                      Analisando sua descrição com ChatGPT-4.5...
                     </div>
                     <div className="flex items-center">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
-                      Gerando código do jogo...
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-3 animate-pulse"></div>
+                      Gerando código C# para Unity...
                     </div>
                     <div className="flex items-center">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
-                      Compilando executável...
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-3 animate-pulse"></div>
+                      Compilando projeto Unity...
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full mr-3 animate-pulse"></div>
+                      Preparando executável para download...
                     </div>
                   </div>
                 </div>
